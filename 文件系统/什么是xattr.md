@@ -1,6 +1,53 @@
-# 什么是xattr
+# 文件系统中的扩展属性xattr
 
-在文件系统中，“xattr”指的是扩展属性（Extended Attributes）。扩展属性允许用户或系统为文件或目录附加元数据，这些元数据不属于文件内容的一部分。与基本的文件属性（如文件大小、创建时间等）不同，扩展属性可以存储更多详细和特定于应用的信息，比如安全权限、用户自定义数据等。<br />扩展属性由键值对组成，键（Name）是属性的名称，值（Value）是与键相关联的数据。使用扩展属性，可以实现例如：<br />安全控制：例如，通过SELinux安全模块设置的安全标签属性等。<br />用户自定义标签：用户可以根据需要为文件添加自定义标记或说明，比如项目标识、版本信息等。<br />系统级标记：文件系统可以存储有关文件的特定操作或优化的信息，比如预读取提示、文件压缩状态等。<br />Linux系统中，管理扩展属性的一些常用命令包括：<br />setfattr：设置文件的扩展属性。<br />getfattr：获取文件的扩展属性。<br />lsattr：列出文件的一些特殊属性（虽然这些属性不完全是xattr的一部分，但与文件元数据管理相关）。<br />chattr：修改文件的一些特殊属性。<br />不是所有的文件系统都支持扩展属性，而且在支持的文件系统中，扩展属性的实现和限制（如属性大小限制）可能会有所不同。例如，Ext3、Ext4、XFS和Btrfs等文件系统支持扩展属性。开启和使用扩展属性，可以为文件系统中的文件提供更丰富的元数据支持，但也要注意合理使用，以避免不必要的性能开销。
+> 参考：《文件系统技术内幕》
 
----
+# 什么是文件系统中的扩展属性 xattr
+
+文件的基础属性包括 inode ID、创建时间和大小等，比较有限。扩展属性 xattr 是一种允许用户为文件添加自定义属性的方法。xattr 以键值对的方式储存在文件外部。
+
+## 通过 API 使用 xattr
+
+setfattr 设置属性，getfattr 获取属性。
+
+# xattr 的实现
+
+## NTFS
+
+在 Windows 的 NTFS 文件系统中没有扩展属性的概念，而是有 ADS（Alternate Data Stream）的概念。
+
+## Ext2
+
+在 Linux 中，以 Ext2 为例。xattr 的内容存储在一个单独的逻辑块中，由描述头、扩展属性项和值组成。
+![534520072.jpg](https://cdn.nlark.com/yuque/0/2024/jpeg/22949753/1720595918927-3071c430-0d77-4f6d-9d0a-74580ece67fc.jpeg#averageHue=%23adada8&from=url&id=utHTN&originHeight=1493&originWidth=1846&originalType=binary&ratio=1&rotation=0&showTitle=false&size=1443169&status=done&style=none&title=)
+entry 存储了键和值的偏移量等信息。键向下生长、值向上生长。但是由于键和值的长度是可变的，因此 entry 和 value 的长度也是可变的，必须通过遍历 entry 才能找到键，通过 offs 才能找到 value。
+
+## F2FS
+
+为了搞清楚 F2FS 中 xattr 的实现方法，必须解答三个问题：xattr 怎样存储，怎样设置，怎样查询。
+
+### 数据结构
+
+f2fs 中也存在 xattr 的 header 和 entry。
+
+```cpp
+struct f2fs_xattr_header {
+    __le32  h_magic;        /* magic number for identification */
+    __le32  h_refcount;     /* reference count */
+    __u32   h_reserved[4];  /* zero right now */
+};
+
+struct f2fs_xattr_entry {
+    __u8    e_name_index;
+    __u8    e_name_len;
+    __le16  e_value_size;   /* size of attribute value */
+    char    e_name[];      /* attribute name */
+};
+```
+
+### 接口
+
+xattr 是 linux 的文件系统中广泛支持的功能，VFS 通过一系列函数接口调用具体文件系统的实现。f2fs/xattr.c 中的f2fs_xattr_user_handler、f2fs_xattr_trusted_handler、f2fs_xattr_advise_handler 和f2fs_xattr_security_handler 是 f2fs 中针对 xattr 的接口。
+![image.png](https://cdn.nlark.com/yuque/0/2024/png/22949753/1720598373069-8146aff6-744c-4efd-a6fc-de73d2f71c50.png#averageHue=%23201f1f&clientId=u69f81bf4-140b-4&from=paste&height=664&id=u62b11fbe&originHeight=664&originWidth=589&originalType=binary&ratio=1.100000023841858&rotation=0&showTitle=false&size=25797&status=done&style=none&taskId=ue0e0d732-8575-42ab-9b89-1c9d2cc86e6&title=&width=589)
+![](https://cdn.nlark.com/yuque/0/2024/jpeg/22949753/1720600596573-52b52bc4-9506-4ff8-a0f9-01f1af592050.jpeg)
 
